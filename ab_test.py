@@ -1,13 +1,15 @@
 import pandas as pd
 from power_functions import ProportionPower
 import scipy.stats as scs
-import numpy as np
 from numpy import sqrt
+from z_test import z_test
 
 
 class ABTest(object):
     """This class reads in a csv file, cleans the data and executes functions
-    related to AB testing"""
+    related to AB testing
+    """
+
     def __init__(self, filename, effect_size, alpha=.05,
                  power=.8, two_tailed=True):
         self.data = pd.read_csv(filename)
@@ -38,7 +40,8 @@ class ABTest(object):
         print 'landing_page column counts:'
         print self.data['landing_page'].value_counts()
 
-    def find_mismatch(self, ab_cell, landing_page_cell):
+    @staticmethod
+    def find_mismatch(ab_cell, landing_page_cell):
         """INPUT:
         - ab_cell(STR) [A cell in the ab column]
         - landing_page_cell(STR) [A cell in the landing_page column]
@@ -98,14 +101,13 @@ class ABTest(object):
               (total_users, unique_users)
 
         # Drop duplicate users
-        if unique_users <= total_users:
-            print 'Dropping duplicate users...'
-            duplicate_users = []
-            # groups() of a groupby object gives a dict of the groupby key
-            # to the value which is a list of indexes of the relevant rows
-            for user, entry_lst in group_user.groups.iteritems():
-                if len(entry_lst) > 1:
-                    duplicate_users.append(user)
+        print 'Dropping duplicate users...'
+        duplicate_users = []
+        # groups() of a groupby object gives a dict of the groupby key
+        # to the value which is a list of indexes of the relevant rows
+        for user, entry_lst in group_user.groups.iteritems():
+            if len(entry_lst) > 1:
+                duplicate_users.append(user)
 
         # Reassign to instance variable
         self.data = self.data[~self.data['user_id'].isin(duplicate_users)]
@@ -124,7 +126,7 @@ class ABTest(object):
         self.new_conversion = self.new_convert / self.new_nrow
         self.nrow = self.data.shape[0]
         print 'Control conversion: %s\nTreatment conversion: %s' % \
-               (self.old_conversion, self.new_conversion)
+              (self.old_conversion, self.new_conversion)
 
     def preprocessing(self):
         """Handles all the prepreprocessing"""
@@ -155,28 +157,10 @@ class ABTest(object):
     def z_test(self):
         """Return p value from z-test comparing the proportion of convert
         between the old page and new page"""
-
-        # Calculate all the necessary figures
-
-        # Calculate an overall conversion assuming same conversion
-        # between old and new page
-        conversion = (self.old_convert + self.new_convert) \
-                     / (self.old_nrow + self.new_nrow)
-
-        se = sqrt(conversion * (1 - conversion)
-                  * (1 / self.old_nrow + 1 / self.new_nrow))
-
-        # Calculate z-score and get p-value from standard normal
-        z_score = (self.new_conversion - self.old_conversion
-                   - self.effect_size) / se
-        p_val = 1 - scs.norm.cdf(abs(z_score))
-        if self.two_tailed:
-            reject_null = p_val < (self.alpha / 2)
-        else:
-            reject_null = p_val < self.alpha
-        print 'z-score: %s, p-value: %s, reject null: %s' % \
-                (z_score, p_val, reject_null)
-        return z_score, p_val, reject_null
+        return z_test(self.old_conversion, self.new_conversion,
+                      self.old_nrow, self.new_nrow,
+                      effect_size=self.effect_size,
+                      two_tailed=self.two_tailed, alpha=self.alpha)
 
 if __name__ == '__main__':
     # filename, lift, alpha=.05, power=.8, two_tailed=True
